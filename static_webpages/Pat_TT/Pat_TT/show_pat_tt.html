@@ -1,0 +1,549 @@
+<html>
+<head>
+    <title>SN-1 Timetable Viewer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #0f172a, #1e293b);
+            --text-main: #e5e7eb;
+            --text-muted: #9ca3af;
+            --card-bg: rgba(15, 23, 42, 0.96);
+            --card-border: rgba(148, 163, 184, 0.3);
+            --accent-1: #38bdf8;
+            --accent-2: #6366f1;
+            --table-border: rgba(55, 65, 81, 0.9);
+            --header-text: #0f172a;
+            --row-even: rgba(15, 23, 42, 0.96);
+            --row-odd: rgba(15, 23, 42, 0.9);
+            --row-hover: rgba(30, 64, 175, 0.7);
+            --message-bg: rgba(30, 64, 175, 0.3);
+            --message-border: rgba(96, 165, 250, 0.7);
+            --message-text: #dbeafe;
+            --message-error-bg: rgba(185, 28, 28, 0.25);
+            --message-error-border: rgba(248, 113, 113, 0.9);
+            --message-error-text: #fee2e2;
+        }
+
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: var(--bg-gradient);
+            color: var(--text-main);
+        }
+        .page {
+            max-width: 1100px;
+            margin: 32px auto;
+            padding: 24px 28px 40px;
+            background: var(--card-bg);
+            border-radius: 18px;
+            box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
+            border: 1px solid var(--card-border);
+            position: relative;
+            overflow: hidden;
+        }
+        h1 {
+            margin: 0 0 6px;
+            font-size: 26px;
+            letter-spacing: 0.03em;
+            color: var(--text-main);
+        }
+        .subtitle {
+            margin: 0 0 24px;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+        }
+        .hero-image {
+            width: 180px;
+            max-width: 40%;
+            border-radius: 16px;
+            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(148, 163, 184, 0.45);
+            object-fit: cover;
+        }
+        .page::before {
+            content: "";
+            position: absolute;
+            inset: -80px;
+            background-image:
+                radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 55%),
+                radial-gradient(circle at bottom right, rgba(129, 140, 248, 0.12), transparent 55%);
+            opacity: 0.75;
+            pointer-events: none;
+        }
+        .page-inner {
+            position: relative;
+            z-index: 1;
+        }
+        .upload-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .upload-row label {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text-main);
+        }
+        #csvFile {
+            padding: 8px 10px;
+            border-radius: 999px;
+            border: 1px dashed rgba(148, 163, 184, 0.6);
+            background: rgba(15, 23, 42, 0.85);
+            color: var(--text-main);
+            cursor: pointer;
+            font-size: 13px;
+        }
+        #csvFile:hover {
+            border-color: var(--accent-1);
+            background: rgba(15, 23, 42, 0.95);
+        }
+        .file-hint {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        .controls {
+            margin-top: 16px;
+            padding: 12px 14px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: center;
+            border-radius: 999px;
+            background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 55%),
+                        radial-gradient(circle at bottom right, rgba(129, 140, 248, 0.12), transparent 55%),
+                        rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(148, 163, 184, 0.35);
+        }
+        .controls label {
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--text-main);
+        }
+        .controls select {
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.7);
+            background: rgba(15, 23, 42, 0.95);
+            color: var(--text-main);
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .controls select:focus {
+            outline: none;
+            border-color: var(--accent-1);
+            box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.5);
+        }
+        .hidden {
+            display: none;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: rgba(15, 23, 42, 0.95);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid rgba(148, 163, 184, 0.7);
+        }
+        th, td {
+            border: 1px solid var(--table-border);
+            padding: 8px;
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-main);
+        }
+        th {
+            background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+            color: var(--header-text);
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            font-size: 11px;
+        }
+        tr:nth-child(even) td {
+            background: var(--row-even);
+        }
+        tr:nth-child(odd) td {
+            background: var(--row-odd);
+        }
+        tr:hover td {
+            background: var(--row-hover);
+        }
+        td {
+            line-height: 1.35;
+        }
+        .faculty-title {
+            font-weight: 600;
+            font-size: 18px;
+            margin-top: 26px;
+            margin-bottom: 4px;
+            color: var(--text-main);
+        }
+        .faculty-title span {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-left: 4px;
+        }
+        .message {
+            margin-top: 24px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            background: var(--message-bg);
+            border: 1px solid var(--message-border);
+            color: var(--message-text);
+        }
+        .message.error {
+            background: var(--message-error-bg);
+            border-color: var(--message-error-border);
+            color: var(--message-error-text);
+        }
+        /* Light theme */
+        body[data-theme="light"] {
+            --bg-gradient: linear-gradient(135deg, #e5e7eb, #ffffff);
+            --text-main: #111827;
+            --text-muted: #6b7280;
+            --card-bg: #ffffff;
+            --card-border: rgba(209, 213, 219, 0.9);
+            --accent-1: #0ea5e9;
+            --accent-2: #6366f1;
+            --table-border: #e5e7eb;
+            --header-text: #0f172a;
+            --row-even: #f9fafb;
+            --row-odd: #f3f4f6;
+            --row-hover: #e0f2fe;
+            --message-bg: #eff6ff;
+            --message-border: #bfdbfe;
+            --message-text: #1e40af;
+            --message-error-bg: #fef2f2;
+            --message-error-border: #fecaca;
+            --message-error-text: #991b1b;
+        }
+
+        /* Ocean theme */
+        body[data-theme="ocean"] {
+            --bg-gradient: radial-gradient(circle at top left, #0f172a, #0b1120 45%, #1d4ed8);
+            --text-main: #e5e7eb;
+            --text-muted: #9ca3af;
+            --card-bg: rgba(15, 23, 42, 0.98);
+            --card-border: rgba(56, 189, 248, 0.6);
+            --accent-1: #06b6d4;
+            --accent-2: #0ea5e9;
+            --table-border: rgba(15, 23, 42, 1);
+            --header-text: #0f172a;
+            --row-even: rgba(15, 23, 42, 0.98);
+            --row-odd: rgba(15, 23, 42, 0.94);
+            --row-hover: rgba(8, 47, 73, 0.95);
+            --message-bg: rgba(8, 47, 73, 0.9);
+            --message-border: rgba(56, 189, 248, 0.9);
+            --message-text: #e0f2fe;
+            --message-error-bg: rgba(127, 29, 29, 0.9);
+            --message-error-border: rgba(252, 165, 165, 0.95);
+            --message-error-text: #fee2e2;
+        }
+
+        /* High contrast theme */
+        body[data-theme="contrast"] {
+            --bg-gradient: #000000;
+            --text-main: #f9fafb;
+            --text-muted: #d1d5db;
+            --card-bg: #020617;
+            --card-border: #f59e0b;
+            --accent-1: #f97316;
+            --accent-2: #facc15;
+            --table-border: #f59e0b;
+            --header-text: #020617;
+            --row-even: #020617;
+            --row-odd: #111827;
+            --row-hover: #f59e0b;
+            --message-bg: #111827;
+            --message-border: #facc15;
+            --message-text: #fef3c7;
+            --message-error-bg: #7f1d1d;
+            --message-error-border: #fca5a5;
+            --message-error-text: #fee2e2;
+        }
+        @media (max-width: 768px) {
+            .page {
+                margin: 16px;
+                padding: 18px 14px 28px;
+            }
+            .controls {
+                border-radius: 16px;
+            }
+            table {
+                font-size: 12px;
+            }
+            th, td {
+                padding: 6px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="page">
+  <div class="page-inner">
+<div class="header-row">
+  <div>
+    <h1>SN‑1 Timetable Viewer</h1>
+    <p class="subtitle">Upload the master CSV and explore SN‑1 timetables by faculty or by batch with rich, switchable themes.</p>
+  </div>
+  <img class="hero-image" src="https://images.pexels.com/photos/4145354/pexels-photo-4145354.jpeg?auto=compress&cs=tinysrgb&w=800" alt="Students and timetable illustration">
+</div>
+<div class="upload-row">
+    <label for="csvFile">CSV File:</label>
+    <input type="file" id="csvFile" accept=".csv">
+    <span class="file-hint">Expected columns: BATCH, DAY, SESSION, ROOM, COURSE, FACULTY</span>
+</div>
+
+<div id="controls" class="controls hidden">
+    <label for="viewMode">View:</label>
+    <select id="viewMode">
+        <option value="faculty">Faculty-wise</option>
+        <option value="batch">Batch-wise</option>
+    </select>
+
+    <label for="themeSelect">Theme:</label>
+    <select id="themeSelect">
+        <option value="dark">Default</option>
+        <option value="light">Light</option>
+        <option value="ocean">Ocean</option>
+        <option value="contrast">High Contrast</option>
+    </select>
+
+    <label for="facultySelect" id="facultyLabel">Faculty:</label>
+    <select id="facultySelect"></select>
+
+    <label for="batchSelect" id="batchLabel" class="hidden">Batch:</label>
+    <select id="batchSelect" class="hidden"></select>
+</div>
+
+<div id="tables"></div>
+  </div>
+</div>
+
+<script>
+document.getElementById("csvFile").addEventListener("change", function () {
+    Papa.parse(this.files[0], {
+        header: true,
+        skipEmptyLines: true,
+        complete: function (result) {
+            processCSV(result.data);
+        }
+    });
+});
+
+const SN_KEYWORD = "SN-";
+const days = ["MON", "TUE", "WED", "THU", "FRI", "SAT"];
+let snData = [];
+
+const controls = document.getElementById("controls");
+const viewModeSelect = document.getElementById("viewMode");
+const facultySelect = document.getElementById("facultySelect");
+const batchSelect = document.getElementById("batchSelect");
+const facultyLabel = document.getElementById("facultyLabel");
+const batchLabel = document.getElementById("batchLabel");
+const themeSelect = document.getElementById("themeSelect");
+
+viewModeSelect.addEventListener("change", handleViewChange);
+facultySelect.addEventListener("change", renderSelectedView);
+batchSelect.addEventListener("change", renderSelectedView);
+themeSelect.addEventListener("change", handleThemeChange);
+
+// initialize default theme
+document.body.setAttribute("data-theme", "dark");
+
+function processCSV(data) {
+    snData = data.filter(row => (row["BATCH"] || "").toUpperCase().includes(SN_KEYWORD));
+    populateSelectors();
+    handleViewChange();
+    renderSelectedView();
+}
+
+function populateSelectors() {
+    if (!snData.length) {
+        document.getElementById("tables").innerHTML =
+            "<div class='message error'>No SN‑1 records found in this CSV. Please verify the BATCH values.</div>";
+        controls.classList.add("hidden");
+        return;
+    }
+
+    controls.classList.remove("hidden");
+
+    const facultySet = new Set();
+    const batchSet = new Set();
+
+    snData.forEach(row => {
+        const faculty = (row["FACULTY"] || "").trim();
+        const batch = (row["BATCH"] || "").trim();
+        if (faculty) facultySet.add(faculty);
+        if (batch) batchSet.add(batch);
+    });
+
+    facultySelect.innerHTML = Array.from(facultySet)
+        .sort()
+        .map(name => `<option value="${name}">${name}</option>`)
+        .join("");
+
+    batchSelect.innerHTML = Array.from(batchSet)
+        .sort()
+        .map(batch => `<option value="${batch}">${batch}</option>`)
+        .join("");
+}
+
+function handleViewChange() {
+    const mode = viewModeSelect.value;
+    if (mode === "faculty") {
+        facultyLabel.classList.remove("hidden");
+        facultySelect.classList.remove("hidden");
+        batchLabel.classList.add("hidden");
+        batchSelect.classList.add("hidden");
+    } else {
+        facultyLabel.classList.add("hidden");
+        facultySelect.classList.add("hidden");
+        batchLabel.classList.remove("hidden");
+        batchSelect.classList.remove("hidden");
+    }
+    renderSelectedView();
+}
+
+function handleThemeChange() {
+    const theme = themeSelect.value || "dark";
+    document.body.setAttribute("data-theme", theme);
+}
+
+function renderSelectedView() {
+    if (!snData.length) return;
+
+    const mode = viewModeSelect.value;
+    if (mode === "faculty") {
+        buildFacultyTable(facultySelect.value);
+    } else {
+        buildBatchTable(batchSelect.value);
+    }
+}
+
+function buildFacultyTable(faculty) {
+    const timetable = {};
+
+    snData.forEach(row => {
+        const facultyName = (row["FACULTY"] || "").trim();
+        if (facultyName !== faculty) return;
+
+        const day = normalizeDay(row["DAY"]);
+        const session = normalizeSession(row["SESSION"]);
+        if (!day || !session) return;
+
+        if (!timetable[facultyName]) {
+            timetable[facultyName] = {};
+        }
+        if (!timetable[facultyName][day]) {
+            timetable[facultyName][day] = { FN: "", AN: "" };
+        }
+
+        const content = formatEntry(row);
+        timetable[facultyName][day][session] = content;
+    });
+
+    buildTablesFromMap(timetable, `Faculty: ${faculty}`);
+}
+
+function buildBatchTable(batch) {
+    const timetable = {};
+
+    snData.forEach(row => {
+        const batchName = (row["BATCH"] || "").trim();
+        if (batchName !== batch) return;
+
+        const day = normalizeDay(row["DAY"]);
+        const session = normalizeSession(row["SESSION"]);
+        if (!day || !session) return;
+
+        if (!timetable[batchName]) {
+            timetable[batchName] = {};
+        }
+        if (!timetable[batchName][day]) {
+            timetable[batchName][day] = { FN: "", AN: "" };
+        }
+
+        const content = formatEntry(row, true);
+        timetable[batchName][day][session] = content;
+    });
+
+    buildTablesFromMap(timetable, `Batch: ${batch}`);
+}
+
+function buildTablesFromMap(map, titleText) {
+    const container = document.getElementById("tables");
+    container.innerHTML = "";
+
+    const keys = Object.keys(map);
+    if (!keys.length) {
+        container.innerHTML = "<p>No records found for the selected option.</p>";
+        return;
+    }
+
+    keys.forEach(key => {
+        const table = document.createElement("table");
+
+        const title = document.createElement("div");
+        title.className = "faculty-title";
+        title.innerHTML = titleText;
+        container.appendChild(title);
+
+        let html = "<tr><th>DAY</th><th>FN</th><th rowspan=7>L<br>U<br>N<br>C<br>H</th><th>AN</th></tr>";
+        days.forEach(day => {
+            const fn = map[key][day]?.FN || "";
+            const an = map[key][day]?.AN || "";
+            html += `
+                <tr>
+                    <td>${day}</td>
+                    <td>${fn}</td>
+                    <td>${an}</td>
+                </tr>
+            `;
+        });
+        table.innerHTML = html;
+        container.appendChild(table);
+    });
+}
+
+function normalizeDay(dayValue) {
+    return (dayValue || "")
+        .replace(/[^A-Za-z]/g, "")
+        .slice(0, 3)
+        .toUpperCase();
+}
+
+function normalizeSession(session) {
+    const value = (session || "").toUpperCase();
+    return value === "FN" || value === "AN" ? value : "";
+}
+
+function formatEntry(row, includeFaculty = false) {
+    const course = row["COURSE"] || "";
+    const room = row["ROOM"] || "";
+    const batch = row["BATCH"] || "";
+    const faculty = row["FACULTY"] || "";
+
+    let content = `${course}<br>Room: ${room}<br>Batch: ${batch}`;
+    if (includeFaculty) {
+        content += `<br>Faculty: ${faculty}`;
+    }
+    return content;
+}
+</script>
+
+</body>
+</html>
